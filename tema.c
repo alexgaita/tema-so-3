@@ -9,53 +9,51 @@
 #include <time.h>
 #include <signal.h>
 #include <math.h>
+#include <ctype.h>
 
 int firstPipe[2];
 int secondPipe[2];
 int thirdPipe[2];
 
+enum procese
+{
+    Copil1 = 1,
+    Parinte,
+    Copil2
+};
+enum procese proces;
+
 int alarmCalled = 0;
-int seconds = 0;
-int position = 0;
 
 int nrCaractere = 0;
 int litereMici[26];
 int litereDistincte[26];
-int statisticsCalled = 0;
 
 clock_t t;
 
 void printTimeElapsed()
 {
-
     clock_t newTime = clock() - t;
     double time_taken = ((double)newTime) / CLOCKS_PER_SEC; // in seconds
-    if (position == 4)
-    {
-        printf("In copil Seconds elapsed: %f \n", time_taken);
-    }
-    if (position == 2 && seconds == 5)
-    {
-        printf("In parinte Seconds elapsed: %f \n", time_taken);
-    }
-}
 
-void resetAlarm()
-{
-    if (alarmCalled)
+    if (proces == Copil1)
     {
-        alarmCalled = 0;
-        alarm(1);
+        printf("In copil au trecut: %f secunde\n", time_taken);
+    }
+
+    if (proces == Parinte)
+    {
+        printf("In Parinte au trecut: %f secunde\n", time_taken);
     }
 }
 
 void alertHandler(int sigInt)
 {
-    alarmCalled = 1;
-    seconds++;
-    if (position == 4)
+    alarmCalled++;
+    if (proces == Copil1)
     {
         kill(0, SIGUSR1);
+        alarm(1);
     }
     printTimeElapsed();
 }
@@ -63,10 +61,8 @@ void alertHandler(int sigInt)
 void handler(int sigInt)
 {
 
-    if (position == 5)
+    if (proces == Copil2)
     {
-        statisticsCalled++;
-
         printf("Caractere mici citite: %d\n", nrCaractere);
 
         for (int i = 0; i < 26; i++)
@@ -75,24 +71,12 @@ void handler(int sigInt)
             if (!litereMici[i])
                 continue;
 
-            printf("Litera '%c' apare de %d ori\n", 97 + i, litereMici[i]);
+            printf("Litera '%c' apare de %d ori\n", 'a' + i, litereMici[i]);
         }
         printf("--------------------------\n");
         nrCaractere = 0;
         memset(litereMici, 0, sizeof(litereMici));
     }
-}
-
-char *toArray(int number)
-{
-    int n = log10(number) + 1;
-    int i;
-    char *numberArray = calloc(n, sizeof(char));
-    for (i = n - 1; i >= 0; --i, number /= 10)
-    {
-        numberArray[i] = (number % 10) + '0';
-    }
-    return numberArray;
 }
 
 int main()
@@ -102,6 +86,7 @@ int main()
     char *input;
     size_t bufferSize = 32;
     signal(SIGUSR1, handler);
+    signal(SIGALRM, alertHandler);
 
     pipe(firstPipe);
     pipe(secondPipe);
@@ -110,97 +95,84 @@ int main()
 
     if (pid == 0)
     {
-        signal(SIGALRM, alertHandler);
-
-        position = 4;
+        proces = Copil1;
 
         t = clock();
+
         close(firstPipe[1]);
         close(secondPipe[0]);
         close(thirdPipe[0]);
         close(thirdPipe[1]);
 
         alarm(1);
-        char buffer[2000];
         char ch;
-        int nr;
 
-        read(firstPipe[0], buffer, sizeof(buffer));
-
-        for (int i = 0; i < strlen(buffer); i++)
+        while (read(firstPipe[0], &ch, 1))
         {
-
-            if (buffer[i] >= 'a' && buffer[i] <= 'z')
+            if (ch >= 'a' && ch <= 'z')
             {
-                write(secondPipe[1], &buffer[i], 1);
+                write(secondPipe[1], &ch, 1);
             }
         }
 
-        while (seconds < 5)
-        {
-            resetAlarm();
-        }
+        while (alarmCalled < 5)
+            ;
 
-        close(firstPipe[0]);
         close(secondPipe[1]);
+        close(firstPipe[0]);
     }
     else
     {
         pid_t pid2 = fork();
         if (pid2 == 0)
         {
+            proces = Copil2;
+
             int fileDes;
             fileDes = creat("statistica.txt", 0777);
 
             dup2(fileDes, 1);
 
-            position = 5;
             close(firstPipe[0]);
             close(firstPipe[1]);
             close(secondPipe[1]);
             close(thirdPipe[0]);
 
             char ch;
-            int nr;
             int indexToInsert;
 
-            while ((nr = read(secondPipe[0], &ch, 1)))
+            while (read(secondPipe[0], &ch, 1))
             {
 
-                indexToInsert = ch - 97;
+                indexToInsert = ch - 'a';
                 litereMici[indexToInsert]++;
                 litereDistincte[indexToInsert]++;
                 nrCaractere++;
             }
-
-            if (statisticsCalled == 5)
-            {
-                int litereDistincteCount = 0;
-                for (int i = 0; i < 26; i++)
-                {
-
-                    if (!litereDistincte[i])
-                        continue;
-
-                    litereDistincteCount++;
-                }
-
-                write(thirdPipe[1], &litereDistincteCount, sizeof(litereDistincteCount));
-
-                close(thirdPipe[1]);
-            }
             close(secondPipe[0]);
+
+            int litereDistincteCount = 0;
+            for (int i = 0; i < 26; i++)
+            {
+
+                if (!litereDistincte[i])
+                    continue;
+
+                litereDistincteCount++;
+            }
+
+            write(thirdPipe[1], &litereDistincteCount, sizeof(litereDistincteCount));
+
+            close(thirdPipe[1]);
+            close(fileDes);
         }
         else
         {
+            proces = Parinte;
 
-            signal(SIGALRM, alertHandler);
-
-            position = 2;
             t = clock();
+
             int fileDes = open("data.txt", O_RDONLY);
-            char *cuvant = NULL;
-            size_t bufsize = 32;
 
             close(firstPipe[0]);
             close(secondPipe[0]);
@@ -208,39 +180,38 @@ int main()
             close(thirdPipe[1]);
 
             dup2(fileDes, 0);
-            alarm(1);
+            alarm(5);
+
+            char ch;
 
             while (1)
             {
-                resetAlarm();
-                ssize_t nread = getline(&cuvant, &bufsize, stdin);
+                ch = getchar();
 
-                write(firstPipe[1], cuvant, strlen(cuvant) + 1);
+                if (!isspace(ch))
+                {
+                    write(firstPipe[1], &ch, 1);
+                }
 
-                if (feof(stdin))
+                if (feof(stdin) || alarmCalled)
                 {
                     printf("Am terminat de citit\n");
+                    close(firstPipe[1]);
                     break;
                 }
             }
 
-            while (seconds < 5)
-            {
-                resetAlarm();
-            }
-
-            while (wait(NULL) > 0)
+            while (!alarmCalled)
                 ;
 
             int caractereDistincteDeLaCopil;
 
             read(thirdPipe[0], &caractereDistincteDeLaCopil, sizeof(caractereDistincteDeLaCopil));
 
-            printf("Caractere distincte citite de la copil: %d", caractereDistincteDeLaCopil);
+            printf("Caractere distincte citite de la copil: %d\n", caractereDistincteDeLaCopil);
 
             close(thirdPipe[0]);
             close(fileDes);
-            close(firstPipe[1]);
         }
     }
 
