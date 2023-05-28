@@ -8,17 +8,21 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <signal.h>
+#include <math.h>
 
 int firstPipe[2];
 int secondPipe[2];
+int thirdPipe[2];
 
 int alarmCalled = 0;
 int seconds = 0;
 int position = 0;
-int parentFinishedWriting = 0;
 
 int nrCaractere = 0;
 int litereMici[26];
+int litereDistincte[26];
+int statisticsCalled = 0;
+
 clock_t t;
 
 void printTimeElapsed()
@@ -30,7 +34,7 @@ void printTimeElapsed()
     {
         printf("In copil Seconds elapsed: %f \n", time_taken);
     }
-    if (position == 2)
+    if (position == 2 && seconds == 5)
     {
         printf("In parinte Seconds elapsed: %f \n", time_taken);
     }
@@ -53,10 +57,6 @@ void alertHandler(int sigInt)
     {
         kill(0, SIGUSR1);
     }
-    // if (position == 2)
-    // {
-    //     printf("Merge alarma in parinte\n");
-    // }
     printTimeElapsed();
 }
 
@@ -65,6 +65,7 @@ void handler(int sigInt)
 
     if (position == 5)
     {
+        statisticsCalled++;
 
         printf("Caractere mici citite: %d\n", nrCaractere);
 
@@ -82,13 +83,16 @@ void handler(int sigInt)
     }
 }
 
-void secondHandler(int sigInt)
+char *toArray(int number)
 {
-    if (position == 4)
+    int n = log10(number) + 1;
+    int i;
+    char *numberArray = calloc(n, sizeof(char));
+    for (i = n - 1; i >= 0; --i, number /= 10)
     {
-        printf("Am trimis semnal la primul copil\n");
-        parentFinishedWriting = 1;
+        numberArray[i] = (number % 10) + '0';
     }
+    return numberArray;
 }
 
 int main()
@@ -98,10 +102,10 @@ int main()
     char *input;
     size_t bufferSize = 32;
     signal(SIGUSR1, handler);
-    signal(SIGUSR2, secondHandler);
 
     pipe(firstPipe);
     pipe(secondPipe);
+    pipe(thirdPipe);
     pid = fork();
 
     if (pid == 0)
@@ -113,16 +117,12 @@ int main()
         t = clock();
         close(firstPipe[1]);
         close(secondPipe[0]);
+        close(thirdPipe[0]);
+        close(thirdPipe[1]);
+
         alarm(1);
         char buffer[2000];
         char ch;
-
-        while (!parentFinishedWriting)
-        {
-            printf("Nu citi\n");
-            resetAlarm();
-        }
-
         int nr;
 
         read(firstPipe[0], buffer, sizeof(buffer));
@@ -158,6 +158,7 @@ int main()
             close(firstPipe[0]);
             close(firstPipe[1]);
             close(secondPipe[1]);
+            close(thirdPipe[0]);
 
             char ch;
             int nr;
@@ -168,9 +169,26 @@ int main()
 
                 indexToInsert = ch - 97;
                 litereMici[indexToInsert]++;
+                litereDistincte[indexToInsert]++;
                 nrCaractere++;
             }
 
+            if (statisticsCalled == 5)
+            {
+                int litereDistincteCount = 0;
+                for (int i = 0; i < 26; i++)
+                {
+
+                    if (!litereDistincte[i])
+                        continue;
+
+                    litereDistincteCount++;
+                }
+
+                write(thirdPipe[1], &litereDistincteCount, sizeof(litereDistincteCount));
+
+                close(thirdPipe[1]);
+            }
             close(secondPipe[0]);
         }
         else
@@ -187,6 +205,7 @@ int main()
             close(firstPipe[0]);
             close(secondPipe[0]);
             close(secondPipe[1]);
+            close(thirdPipe[1]);
 
             dup2(fileDes, 0);
             alarm(1);
@@ -205,18 +224,21 @@ int main()
                 }
             }
 
-            kill(pid, SIGUSR2);
-
             while (seconds < 5)
             {
                 resetAlarm();
             }
 
             while (wait(NULL) > 0)
-            {
-                printf("astept sa se termine copilu\n");
-            }
+                ;
 
+            int caractereDistincteDeLaCopil;
+
+            read(thirdPipe[0], &caractereDistincteDeLaCopil, sizeof(caractereDistincteDeLaCopil));
+
+            printf("Caractere distincte citite de la copil: %d", caractereDistincteDeLaCopil);
+
+            close(thirdPipe[0]);
             close(fileDes);
             close(firstPipe[1]);
         }
