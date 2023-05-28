@@ -1,0 +1,33 @@
+Caractere mici citite: 1114
+Litera 'a' apare de 175 ori
+Litera 'b' apare de 15 ori
+Litera 'c' apare de 64 ori
+Litera 'd' apare de 46 ori
+Litera 'e' apare de 96 ori
+Litera 'f' apare de 5 ori
+Litera 'g' apare de 17 ori
+Litera 'h' apare de 1 ori
+Litera 'i' apare de 161 ori
+Litera 'j' apare de 1 ori
+Litera 'k' apare de 1 ori
+Litera 'l' apare de 20 ori
+Litera 'm' apare de 52 ori
+Litera 'n' apare de 87 ori
+Litera 'o' apare de 51 ori
+Litera 'p' apare de 24 ori
+Litera 'r' apare de 40 ori
+Litera 's' apare de 49 ori
+Litera 't' apare de 96 ori
+Litera 'u' apare de 94 ori
+Litera 'v' apare de 10 ori
+Litera 'y' apare de 5 ori
+Litera 'z' apare de 4 ori
+--------------------------
+Caractere mici citite: 0
+--------------------------
+Caractere mici citite: 0
+--------------------------
+Caractere mici citite: 0
+--------------------------
+Caractere mici citite: 0
+--------------------------
